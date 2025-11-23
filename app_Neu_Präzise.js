@@ -1,7 +1,7 @@
 // === Konfiguration (über URL-Parameter überschreibbar) =======================
 const Q = new URLSearchParams(location.search);
 const CONFIG = {
-  INITIAL_OFFER: Number(Q.get('i')) || 5500,
+  INITIAL_OFFER: Number(Q.get('i')) || 5518,   // <-- Startwert jetzt 5.518 €
   MIN_PRICE: Q.has('min') ? Number(Q.get('min')) : undefined,
   MIN_PRICE_FACTOR: Number(Q.get('mf')) || 0.70,
   ACCEPT_MARGIN: Number(Q.get('am')) || 0.12,
@@ -44,8 +44,8 @@ const eur = n => new Intl.NumberFormat('de-DE', {style:'currency', currency:'EUR
 const roundDownInc = (v, inc) => Math.floor(v / inc) * inc;
 const randomChoice = (arr) => arr[randInt(0, arr.length - 1)];
 
-// Rundung auf die nächste 25er-Stufe (z.B. 4712,49 -> 4700; 4712,50 -> 4725)
-const roundToNearest25 = (v) => Math.round(v / 25) * 25;
+// Rundung auf den nächsten vollen Euro
+const roundToEuro = (v) => Math.round(v);
 
 // === Zustand =================================================================
 function newState(){
@@ -177,11 +177,11 @@ function computeNextOffer(prevOffer, minPrice, probandCounter, runde, lastConces
   const m = Number(minPrice);
   const r = Number(runde);
 
-  // Hilfsfunktionen mit 25er-Rundung
+  // Hilfsfunktionen mit Euro-Rundung
   const applyPercentDown = () => {
     const p = randomChoice(PERCENT_STEPS);
     const raw = prev * (1 - p);
-    let rounded = roundToNearest25(raw);
+    let rounded = roundToEuro(raw);
     const bounded = Math.max(m, Math.min(rounded, prev));
     return bounded;
   };
@@ -189,7 +189,7 @@ function computeNextOffer(prevOffer, minPrice, probandCounter, runde, lastConces
   const applyEuroDown = () => {
     const step = randomChoice(EURO_STEPS);
     const raw = prev - step;
-    let rounded = roundToNearest25(raw);
+    let rounded = roundToEuro(raw);
     const bounded = Math.max(m, Math.min(rounded, prev));
     return bounded;
   };
@@ -197,7 +197,7 @@ function computeNextOffer(prevOffer, minPrice, probandCounter, runde, lastConces
   const applyPercentUp = () => {
     const p = randomChoice(PERCENT_STEPS);
     const raw = prev * (1 + p);
-    let rounded = roundToNearest25(raw);
+    let rounded = roundToEuro(raw);
     const bounded = Math.min(state.initial_offer, Math.max(rounded, prev));
     return bounded;
   };
@@ -466,7 +466,7 @@ function viewDecision(){
     <h1>Letzte Runde der Verhandlung erreicht.</h1>
     <p class="muted">Teilnehmer-ID: ${state.participant_id}</p>
     <div class="grid">
-      <div class="card" style="padding:16px;background:#fafafa;border-radius:12px;border:1px dashed var(--accent);">
+      <div class="card" style="padding:16px;background:#fafafa;border:1px dashed var(--accent);border-radius:12px;">
         <div><strong>Letztes Angebot der Verkäuferseite:</strong> ${eur(state.current_offer)}</div>
       </div>
       <button id="takeBtn">Letztes Angebot annehmen</button>
@@ -546,6 +546,3 @@ function viewFinish(accepted){
 
 // === Start ===================================================================
 viewVignette();
-
-
-
