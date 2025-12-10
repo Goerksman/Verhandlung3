@@ -62,7 +62,7 @@ const ABSOLUTE_FLOOR = 3500;
 const BASE_INITIAL_OFFER = CONFIG.INITIAL_OFFER;
 const BASE_MIN_PRICE     = CONFIG.MIN_PRICE;
 
-// NEU: Basis-Schrittweite auf 500 € gesetzt
+// Basis-Schrittweite auf 500 € gesetzt
 const BASE_STEP_AMOUNT   = 500;
 
 /*
@@ -107,7 +107,7 @@ const app = document.getElementById('app');
 const randInt = (a,b) => Math.floor(a + Math.random()*(b-a+1));
 const eur = n => new Intl.NumberFormat('de-DE', {style:'currency', currency:'EUR'}).format(n);
 const randomChoice = (arr) => arr[randInt(0, arr.length - 1)];
-// Rundung auf 50er Schritte
+// (nicht mehr genutzt, nur falls du es später brauchst)
 const roundToNearest50 = (v) => Math.round(v / 50) * 50;
 
 /* ========================================================================== */
@@ -117,15 +117,13 @@ function newState(){
   // 1) Dimensionsfaktor wählen (1.0, 1.3 oder 1.5)
   const factor = nextDimensionFactor();
 
-  // 2) Startpreis skalieren & auf vollen Euro runden (präzise Zahlen)
+  // 2) Startpreis skalieren & auf vollen Euro runden (präzise, kein 50er-Rounding mehr)
   const initialRaw    = BASE_INITIAL_OFFER * factor;
   const initialOffer  = Math.round(initialRaw);
 
-  // 3) Schmerzgrenze (Basis 3.500 €) skaliert
-  //    → Mit BASE_STEP_AMOUNT = 500 erreicht der Algorithmus diese Grenze
-  //      nach 4 Schritten (Basisdimension) und bleibt dann dort.
+  // 3) Schmerzgrenze (Basis 3.500 €) skaliert, auf vollen Euro runden
   const absFloorRaw   = ABSOLUTE_FLOOR * factor;
-  const floorRounded  = roundToNearest50(absFloorRaw);
+  const floorRounded  = Math.round(absFloorRaw);
 
   // 4) Schrittweite skalieren (linearer Abzug)
   const stepAmount    = BASE_STEP_AMOUNT * factor;
@@ -154,7 +152,7 @@ function newState(){
     deal_price: null,
     finish_reason: null,
 
-    // NEU: hier wird die zuletzt intern berechnete Abbruchwahrscheinlichkeit gespeichert
+    // zuletzt intern berechnete Abbruchwahrscheinlichkeit
     last_abort_chance: null
   };
 }
@@ -275,7 +273,7 @@ function abortProbability(userOffer) {
 function maybeAbort(userOffer) {
   const chance = abortProbability(userOffer);
 
-  // NEU: exakt diesen Wert merken, damit er im UI angezeigt werden kann
+  // exakt diesen Wert merken, damit er im UI angezeigt werden kann
   state.last_abort_chance = chance;
 
   const roll = randInt(1, 100);
@@ -386,11 +384,8 @@ function computeNextOffer(prevOffer, minPrice, probandCounter, runde, lastConces
   // jede Runde: fixer (skalierter) Betrag runter
   const raw = prev - step;
 
-  // auf 50er runden
-  let rounded = roundToNearest50(raw);
-
-  // Nicht unter floor und niemals höher als das vorige Angebot
-  const next = Math.max(floor, Math.min(rounded, prev));
+  // KEIN 50er-Rounding mehr – präzise Schrittfolge
+  const next = Math.max(floor, Math.min(raw, prev));
 
   return next;
 }
@@ -484,7 +479,7 @@ function viewAbort(chance){
 /* ========================================================================== */
 
 function viewNegotiate(errorMsg){
-  // NEU: Anzeige verwendet genau die zuletzt intern berechnete Abbruchwahrscheinlichkeit
+  // Anzeige verwendet genau die zuletzt intern berechnete Abbruchwahrscheinlichkeit
   const abortChance = (typeof state.last_abort_chance === 'number')
     ? state.last_abort_chance
     : null;
@@ -610,7 +605,6 @@ function handleSubmit(raw){
   /* ---------------------------------------------------------------------- */
   if (num < extremeThreshold) {
 
-    // NEU: auch hier klar definierte Abbruchwahrscheinlichkeit
     state.last_abort_chance = 100;
 
     state.history.push({
@@ -640,7 +634,6 @@ function handleSubmit(raw){
   /* Normale (>= 1500*f) Angebote – alles läuft über Abbruchwahrscheinlichkeit */
   /* ---------------------------------------------------------------------- */
 
-  // Abbruchwahrscheinlichkeit prüfen (kann sofort beenden)
   if (maybeAbort(num)) {
     return;
   }
@@ -717,7 +710,7 @@ function viewDecision(){
     });
 
     state.accepted = true;
-    state.finished = true;
+       state.finished = true;
     state.deal_price = state.current_offer;
     viewThink(() => viewFinish(true));
   };
