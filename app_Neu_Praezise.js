@@ -106,6 +106,7 @@ function newState(){
     finished: false,
     accepted: false,
     patternMessage: '',
+    warningRounds: 0,       // aus vorherigem Code übernommen, falls benötigt
     deal_price: null,
     finish_reason: null,
     last_abort_chance: null
@@ -135,7 +136,7 @@ function logRound(row) {
 }
 
 /* ========================================================================== */
-/* Auto-Accept                                                                */
+/* Auto-Accept – Verhandlungsstil unverändert                                 */
 /* ========================================================================== */
 function shouldAutoAccept(initialOffer, minPrice, prevOffer, counter){
   const c = Number(counter);
@@ -156,7 +157,7 @@ function shouldAutoAccept(initialOffer, minPrice, prevOffer, counter){
 }
 
 /* ========================================================================== */
-/* NEU: Abbruchwahrscheinlichkeit (A – reine Differenzformel)                */
+/* Abbruchwahrscheinlichkeit (A – reine Differenzformel) – unverändert       */
 /* ========================================================================== */
 function abortProbability(userOffer) {
 
@@ -215,7 +216,7 @@ function maybeAbort(userOffer) {
 }
 
 /* ========================================================================== */
-/* Mustererkennung                                                            */
+/* Mustererkennung (aus vorherigem Code)                                      */
 /* ========================================================================== */
 function getThresholdForAmount(prev){
   const f = state.scale_factor || 1.0;
@@ -245,6 +246,7 @@ function updatePatternMessage(){
   }
   if (counters.length < 3) {
     state.patternMessage = '';
+    state.warningRounds = 0;
     return;
   }
   let chainLen = 1;
@@ -267,13 +269,15 @@ function updatePatternMessage(){
   if (chainLen >= 3) {
     state.patternMessage =
       'Mit solchen kleinen Erhöhungen wird das schwierig. Geh bitte ein Stück näher an deine Schmerzgrenze, dann finden wir bestimmt schneller einen fairen Deal.';
+    state.warningRounds = chainLen;
   } else {
     state.patternMessage = '';
+    state.warningRounds = 0;
   }
 }
 
 /* ========================================================================== */
-/* Angebotslogik                                                              */
+/* Angebotslogik – Verhandlungsstil unverändert                               */
 /* ========================================================================== */
 function computeNextOffer(prevOffer, minPrice, probandCounter, runde, lastConcession){
   const prev  = Number(prevOffer);
@@ -419,6 +423,8 @@ function viewNegotiate(errorMsg){
         </span>
       </div>
 
+      ${state.patternMessage ? `<p class="info">${state.patternMessage}</p>` : ''}
+
       <label for="counter">Dein Gegenangebot (€)</label>
       <div class="row">
         <input id="counter" type="number" step="1" min="0" />
@@ -429,7 +435,6 @@ function viewNegotiate(errorMsg){
     </div>
 
     ${historyTable()}
-    ${state.patternMessage ? `<p class="info">${state.patternMessage}</p>` : ''}
     ${errorMsg ? `<p class="error">${errorMsg}</p>` : ''}
   `;
 
@@ -466,7 +471,7 @@ function viewNegotiate(errorMsg){
 /* Handle Submit                                                              */
 /* ========================================================================== */
 function handleSubmit(raw){
-  const val = raw.trim().replace(',','.');
+  const val = String(raw ?? '').trim().replace(',','.');
   const parsed = Number(val);
   if (!Number.isFinite(parsed) || parsed < 0){
     return viewNegotiate('Bitte eine gültige Zahl ≥ 0 eingeben.');
@@ -477,6 +482,18 @@ function handleSubmit(raw){
   const f = state.scale_factor || 1.0;
   const extremeThreshold = EXTREME_BASE * f;
 
+  /* NEU aus vorherigem Code: kein niedrigeres Gegenangebot als in der Vorrunde */
+  const last = state.history[state.history.length - 1];
+  if (last && last.proband_counter != null && last.proband_counter !== '') {
+    const lastBuyer = Number(last.proband_counter);
+    if (Number.isFinite(lastBuyer) && num < lastBuyer) {
+      return viewNegotiate(
+        `Dein Gegenangebot darf nicht niedriger sein als in der Vorrunde (${eur(lastBuyer)}).`
+      );
+    }
+  }
+
+  /* Verhandlungsstil: Auto-Accept zuerst, wie in diesem Code vorgesehen */
   if (shouldAutoAccept(state.initial_offer, state.min_price, prevOffer, num)) {
 
     state.history.push({
@@ -693,3 +710,4 @@ function viewFinish(accepted){
 /* Start                                                                      */
 /* ========================================================================== */
 viewVignette();
+
