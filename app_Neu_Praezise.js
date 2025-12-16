@@ -170,7 +170,7 @@ function shouldAutoAccept(initialOffer, minPrice, prevOffer, counter){
 }
 
 /* ========================================================================== */
-/* Abbruchwahrscheinlichkeit: Diff 3000×Multiplikator → 30 %                  */
+/* Abbruchwahrscheinlichkeit: Diff 3000×Multiplikator → 25 %                 */
 /* ========================================================================== */
 function abortProbability(userOffer) {
   const seller = state.current_offer;
@@ -181,8 +181,8 @@ function abortProbability(userOffer) {
 
   const diff = Math.abs(seller - buyer);
 
-  const BASE_DIFF = 3000 * f;      // bei dieser Differenz sollen 30 % entstehen
-  let chance = (diff / BASE_DIFF) * 30;
+  const BASE_DIFF = 3000 * f;      // bei dieser Differenz sollen 25 % entstehen
+  let chance = (diff / BASE_DIFF) * 25;
 
   if (chance < 0)   chance = 0;
   if (chance > 100) chance = 100;
@@ -256,8 +256,8 @@ function updatePatternMessage(currentBuyerOffer){
 
 /* ========================================================================== */
 /* maybeAbort                                                                 */
-/*  - Abbruch erst ab Runde 4                                                */
-/*  - Extrem-Lowball ab Runde 4: < 1500×Multiplikator → 100 %                */
+/*  - Abbruch ab Runde 3                                                     */
+/*  - Extrem-Lowball ab Runde 3: < 1500×Multiplikator → 100 %                */
 /*  - Warnung: +2 % pro Warnrunde                                            */
 /* ========================================================================== */
 function maybeAbort(userOffer) {
@@ -272,13 +272,13 @@ function maybeAbort(userOffer) {
     chance = Math.min(100, chance + state.warningRounds * 2);
   }
 
-  // Runden 1–3: Risiko nur anzeigen, aber niemals abbrechen
-  if (state.runde < 4) {
+  // Runden 1–2: Risiko nur anzeigen, aber niemals abbrechen
+  if (state.runde < 3) {
     state.last_abort_chance = chance;
     return false;
   }
 
-  // Ab Runde 4: Extrem-Lowball → 100 %
+  // Ab Runde 3: Extrem-Lowball → 100 %
   if (buyer < EXTREME_BASE * f) {
     chance = 100;
   }
@@ -575,7 +575,7 @@ function viewNegotiate(errorMsg){
     viewThink(() => viewFinish(true));
   };
 
-  /* NEU: Proband bricht aktiv ab */
+  /* Proband bricht aktiv ab */
   document.getElementById('abortBtn').onclick = () => {
     state.history.push({
       runde: state.runde,
@@ -691,7 +691,7 @@ function handleSubmit(raw){
   // Muster / Warnhinweis für diese Runde prüfen
   updatePatternMessage(num);
 
-  // Abbruchsentscheidung (inkl. Warnaufschlag, aber erst ab Runde 4 kann abgebrochen werden)
+  // Abbruchsentscheidung (inkl. Warnaufschlag, ab Runde 3 kann abgebrochen werden)
   if (maybeAbort(num)) {
     return;
   }
@@ -866,3 +866,4 @@ function viewFinish(accepted){
 /* Start                                                                      */
 /* ========================================================================== */
 viewVignette();
+
