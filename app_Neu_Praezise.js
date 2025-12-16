@@ -53,7 +53,7 @@ const BASE_STEP_AMOUNT   = 500;
 /*
    (früher feste Dimensionen, jetzt reeller Multiplikator 1–5)
 */
-const DIMENSION_FACTORS = [1.0, 1.3, 1.5]; // bleibt stehen, wird aber nicht mehr genutzt
+const DIMENSION_FACTORS = [1.0, 1.3, 1.5]; // historisch, wird nicht mehr genutzt
 let dimensionQueue = [];
 
 function refillDimensionQueue() {
@@ -64,7 +64,7 @@ function refillDimensionQueue() {
   }
 }
 
-/* Multiplikator jetzt: reelle Zufallszahl zwischen 1 und 5 */
+/* Multiplikator: reelle Zufallszahl zwischen 1 und 5 */
 function nextDimensionFactor() {
   return 1 + Math.random() * 4;
 }
@@ -146,7 +146,7 @@ function logRound(row) {
 }
 
 /* ========================================================================== */
-/* Auto-Accept – Verhandlungsstil unverändert                                 */
+/* Auto-Accept – Verhandlungsstil (inkl. 5%-Nähe)                             */
 /* ========================================================================== */
 function shouldAutoAccept(initialOffer, minPrice, prevOffer, counter){
   const c = Number(counter);
@@ -155,6 +155,7 @@ function shouldAutoAccept(initialOffer, minPrice, prevOffer, counter){
   const f = state.scale_factor || 1.0;
 
   const diff = Math.abs(prevOffer - c);
+  // innerhalb ±5 % vom letzten Verkäuferangebot
   if (diff <= prevOffer * 0.05) return true;
 
   const accMin = CONFIG.ACCEPT_RANGE_MIN * f;
@@ -174,6 +175,8 @@ function abortProbability(userOffer) {
   const buyer  = Number(userOffer);
   const f      = state.scale_factor || 1.0;
 
+  if (!Number.isFinite(buyer)) return 0;
+
   const diff = Math.abs(seller - buyer);
 
   const BASE_DIFF = 3000 * f;      // bei dieser Differenz sollen 30 % entstehen
@@ -186,7 +189,7 @@ function abortProbability(userOffer) {
 }
 
 /* ========================================================================== */
-/* Mustererkennung: gleichbleibend / <100 → Warnung + Risikoaufschlag         */
+/* Mustererkennung: gleichbleibend / ≤100×Multiplikator → Warnung + Risiko    */
 /* ========================================================================== */
 function updatePatternMessage(currentBuyerOffer){
   const f = state.scale_factor || 1.0;
@@ -224,7 +227,7 @@ function updatePatternMessage(currentBuyerOffer){
 
   const diff = num - lastBuyerRaw;
 
-  // "keine Veränderung oder Veränderung unter 100 × Multiplikator"
+  // "keine Veränderung oder Veränderung ≤ 100 × Multiplikator"
   const maxSmallStep = 100 * f;
   if (diff >= 0 && diff <= maxSmallStep) {
     state.smallStepStreak = (state.smallStepStreak || 0) + 1;
@@ -240,7 +243,7 @@ function updatePatternMessage(currentBuyerOffer){
   if (state.smallStepStreak >= 2) {
     state.patternMessage =
       'Mit derart kleinen Erhöhungen kommen wir eher unwahrscheinlich zu einer Einigung.';
-    // Warnrunde zählt: +1 pro Runde mit aktivem Warnhinweis
+    // jede Runde mit aktivem Warnhinweis erhöht warningRounds
     state.warningRounds = (state.warningRounds || 0) + 1;
   } else {
     // noch nicht genug kleine Schritte, um eine Warnung zu zeigen
@@ -251,6 +254,9 @@ function updatePatternMessage(currentBuyerOffer){
 
 /* ========================================================================== */
 /* maybeAbort                                                                 */
+/*  - Abbruch erst ab Runde 4                                                */
+/*  - Extrem-Lowball ab Runde 4: < 1500×Multiplikator → 100 %                */
+/*  - Warnung: +2 % pro Warnrunde                                            */
 /* ========================================================================== */
 function maybeAbort(userOffer) {
   const buyer = Number(userOffer);
@@ -270,7 +276,7 @@ function maybeAbort(userOffer) {
     return false;
   }
 
-  // Ab Runde 4: Abbruch möglich, Extrem-Lowball → 100 %
+  // Ab Runde 4: Extrem-Lowball → 100 %
   if (buyer < EXTREME_BASE * f) {
     chance = 100;
   }
@@ -307,7 +313,7 @@ function maybeAbort(userOffer) {
 }
 
 /* ========================================================================== */
-/* Angebotslogik – Verhandlungsstil: fester Schritt nach unten                */
+/* Angebotslogik – fester Schritt nach unten (nur durch min_price begrenzt)   */
 /* ========================================================================== */
 function computeNextOffer(prevOffer, minPrice, probandCounter, runde, lastConcession){
   const prev  = Number(prevOffer);
@@ -316,7 +322,7 @@ function computeNextOffer(prevOffer, minPrice, probandCounter, runde, lastConces
 
   const raw = prev - step;
 
-  // Nur nach unten begrenzt durch min_price; keine Abhängigkeit vom Spielerangebot
+  // Nur nach unten durch min_price begrenzt; KEINE Abhängigkeit vom Gegenangebot
   const next = Math.max(floor, raw);
 
   return next;
@@ -390,6 +396,7 @@ function viewAbort(chance){
       <strong>Die Verkäuferseite hat die Verhandlung beendet, da er mit Ihrem Gegenangebot nicht zufrieden war.</strong>
       <p class="muted" style="margin-top:8px;">Abbruchwahrscheinlichkeit in dieser Runde: ${chance}%</p>
     </div>
+    <p><b>Du kannst nun entweder eine neue Runde spielen oder die Umfrage beantworten.</b></p>
     <button id="restartBtn">Neue Verhandlung</button>
     <button id="surveyBtn"
       style="
@@ -536,9 +543,38 @@ function handleSubmit(raw){
     }
   }
 
-  /* Auto-Accept – unverändert */
+  /* Standard-Auto-Accept (5%-Nähe, Range, Mindestgrenze) */
   if (shouldAutoAccept(state.initial_offer, state.min_price, prevOffer, num)) {
 
+    state.history.push({
+      runde: state.runde,
+      algo_offer: prevOffer,
+      proband_counter: num,
+      accepted: true
+    });
+
+    logRound({
+      runde: state.runde,
+      algo_offer: prevOffer,
+      proband_counter: num,
+      accepted: true,
+      finished: true,
+      deal_price: num
+    });
+
+    state.accepted = true;
+    state.finished = true;
+    state.deal_price = num;
+    return viewThink(() => viewFinish(true));
+  }
+
+  /* Spezielle Regel:
+     Wenn das Angebot des Käufers zwar nicht innerhalb der 5%-Grenze liegt
+     (also oben nicht akzeptiert wurde), aber noch über dem nächsten
+     Schritt des Verkäufers liegt, soll der Verkäufer dieses Angebot annehmen,
+     um nicht „unter“ dem Käufer zu bieten. */
+  const plannedNext = computeNextOffer(prevOffer, state.min_price, num, state.runde, state.last_concession);
+  if (num >= plannedNext && num < prevOffer) {
     state.history.push({
       runde: state.runde,
       algo_offer: prevOffer,
